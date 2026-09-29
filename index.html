@@ -171,6 +171,18 @@ td .desc{color:var(--dim);font-size:11.5px;display:block;max-width:220px;white-s
 .b3 .top,.act .top,.sec-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
 .sec-row .sec-t{margin:0}
 .xall{margin-top:4px}
+.cfg{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12.5px;color:var(--dim)}
+.cfg label{display:flex;align-items:center;gap:6px}
+.cfg input[type=number]{font:inherit;font-family:var(--mono);width:84px;border:1px solid var(--line2);border-radius:6px;padding:4px 6px;background:var(--panel);color:var(--ink)}
+.cfg-note{font-size:11.5px;color:var(--faint)}
+.stack{position:relative;width:150px;height:10px;border-radius:5px;background:var(--panel2);overflow:hidden}
+.stack i{position:absolute;top:0;bottom:0}
+.stack .s1,.lg.s1{background:var(--blue)} .stack .s2,.lg.s2{background:var(--sky)}
+.stack u{position:absolute;top:0;bottom:0;border-left:2px solid var(--ink);opacity:.55}
+.legend-row{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--dim)}
+.lg{display:inline-block;width:14px;height:8px;border-radius:3px;margin-right:6px;vertical-align:0}
+.lg.tg{width:0;height:12px;border-left:2px solid var(--ink);border-radius:0;vertical-align:-2px}
+.over{color:var(--orange);font-weight:600}
 .howto{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin-top:22px;font-size:13px;max-width:none}
 .howto dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;margin:8px 0 0}
 .howto dt{font-weight:700}
@@ -483,8 +495,8 @@ const EMB={"pa":{"A01":{"qoh":666,"desc":"LAURA LYNN 21.5% REG 12PK/7OZ","lines"
 const $=s=>document.querySelector(s);
 const M={pa:EMB.pa,fc:EMB.fc,stock:EMB.stock,bom:EMB.bom,bomDesc:EMB.bomDesc,po:EMB.po,lto:new Set(EMB.lto)};
 const META={...EMB.meta,src:{pa:'snapshot',forecast:'snapshot',stock:'snapshot',bom:'snapshot',po:'snapshot'}};
-const st={page:'home',filter:'all',q:'',open:{},mq:'',mAll:false,limit:{fg:100,m:100},useBatch:false,ignore:''};
-let R=null;
+const st={cfg:{total:60,canMOQ:15200,canMult:true},covF:'short',covQ:'',ordF:'all',ordQ:'',ordAll:false,page:'home',filter:'all',q:'',open:{},mq:'',mAll:false,limit:{fg:100,m:100,cov:100,ord:100},useBatch:false,ignore:''};
+let R=null,P=null;
 
 const fmt=n=>n==null||isNaN(n)?'–':Math.round(n).toLocaleString('en-US');
 const fk=n=>{n=Math.round(n||0);const a=Math.abs(n);return a>=1e6?(n/1e6).toFixed(1)+'M':a>=1e4?Math.round(n/1e3)+'k':a>=1e3?(n/1e3).toFixed(1)+'k':String(n);};
@@ -517,6 +529,7 @@ const makeKey=f=>f.rm==='ready'?'ready':(f.rm==='short'||f.rm==='poInTime')?'blo
 function run(){
   const t=$('#today').value?fromIso($('#today').value):new Date();
   R=compute(M,{today:t,target:+$('#tgt').value||14,useBatchOH:st.useBatch,ignore:st.ignore.split(/[,\s]+/).filter(Boolean)});
+  P=plan60(R,M,st.cfg);
   render();
 }
 function tally(){
@@ -526,7 +539,7 @@ function tally(){
 }
 function nav(){
   const c=tally();
-  const items=[['home','Overview',''],['items','All items',c.red+c.orange],['mat','Materials short',c.mShort],['data','Data & settings','']];
+  const items=[['home','Overview',''],['items','All items',c.red+c.orange],['mat','Materials short',c.mShort],['cov',P.TD+'-day coverage',P.fg.filter(x=>!x.ok).length],['ord','Orders to place',P.rm.filter(x=>x.rec>0).length],['data','Data & settings','']];
   $('#nav').innerHTML=items.map(([k,l,n])=>`<button class="${st.page===k?'on':''}" data-p="${k}">${l}${n!==''?`<span class="n">${n}</span>`:''}</button>`).join('');
 }
 function head(t,s){return `<div class="head"><div><h1>${t}</h1><div class="sub">${s}</div></div></div>`;}
@@ -635,6 +648,95 @@ function matDetail(r){
   <div><h4>Open POs</h4>${po?`<table><thead><tr><th>PO</th><th>Due</th><th class="num">Qty</th></tr></thead><tbody>${po}</tbody></table>`:'<p class="note">No open POs.</p>'}${r.stale.length?`<p class="note">${r.stale.length} overdue PO line(s) not counted (more than 3 days late).</p>`:''}</div></div>`;
 }
 
+/* ----- 60-day coverage + orders to place ----- */
+const pill=a=>`<span class="pill ${a[0]}">${a[1]}</span>`;
+const asOf2=()=>`As of <b>${dOff(0)}</b> · PA from ${META.paDate?dIso(META.paDate):'–'}`;
+const ACT=()=>({late:['p-short','Order now · expedite'],now:['p-po','Order this week'],later:['p-ready','Order later'],ok:['p-ok','Covered']});
+const actTxt=x=>x.action==='later'?'Order by '+dOff(x.orderBy):ACT()[x.action][1];
+function cfgBar(){
+  return `<div class="cfg">
+    <label for="c60">Total days target <input type="number" id="c60" min="14" max="90" value="${st.cfg.total}"></label>
+    <label for="cmoq">Can MOQ <input type="number" id="cmoq" min="1" step="100" value="${st.cfg.canMOQ}"></label>
+    <label for="cmul"><input type="checkbox" id="cmul" ${st.cfg.canMult?'checked':''}> Cans in full MOQ multiples</label>
+    <span class="cfg-note">Cans = item codes 12xxx. Other materials have no MOQ yet.</span></div>`;
+}
+function stack(x){const TD=P.TD,S=Math.max(TD*1.25,30);const w=v=>Math.min(100,v/S*100);
+  return `<div class="stack" title="FG ${days(x.fgDays)} d + RM ${days(x.rmPO)} d"><i class="s1" style="width:${w(x.fgDays)}%"></i><i class="s2" style="left:${w(x.fgDays)}%;width:${Math.max(0,w(x.totPO)-w(x.fgDays))}%"></i><u style="left:${w(TD)}%"></u></div>`;}
+function perTxt(pp){if(!pp)return '–';const pct=pp.pct==null?'no fcst':Math.round(pp.pct*100)+'%';
+  return `<span class="${pp.over?'over':''}">${fk(pp.ord)} / ${fk(pp.fc)}</span><span class="desc" style="display:inline"> · ${pct}${pp.over?' · orders win':''}</span>`;}
+function covRows(){const q=st.covQ.toLowerCase();
+  return P.fg.filter(x=>(st.covF==='all'||(st.covF==='short'&&!x.ok)||(st.covF==='ok'&&x.ok))&&(!q||(x.code+' '+x.desc).toLowerCase().includes(q)))
+    .sort((a,b)=>a.totPO-b.totPO||a.fgDays-b.fgDays);}
+function pgCov(){
+  const TD=P.TD,rows=covRows(),ok=P.fg.filter(x=>x.ok).length,okOH=P.fg.filter(x=>x.okOH).length;
+  const toOrder=P.rm.filter(x=>x.rec>0),cans=toOrder.filter(x=>x.can);
+  const [p1,p2]=P.periods;
+  const body=rows.slice(0,st.limit.cov).map(x=>{const k='cv:'+x.code,open=st.open[k];const w=x.wallPO;
+    return `<tr class="row${open?' open':''}" data-k="${esc(k)}"><td><span class="dot3" style="--c:${x.ok?'var(--green)':x.totPO<R.target?'var(--red)':'var(--orange)'}"></span><span class="code">${esc(x.code)}</span><span class="desc">${esc(x.desc)}</span></td>
+    <td class="num">${perTxt(x.per[0])}</td><td class="num">${perTxt(x.per[1])}</td>
+    <td class="num">${days(x.fgDays)}</td><td class="num">${days(x.rmPO)}</td><td class="num"><b>${days(x.totPO)}</b></td><td>${stack(x)}</td>
+    <td>${!x.ok&&w?`<span class="code">${esc(w.code)}</span><span class="desc">${esc(short(w.desc))}</span>`:x.ok?'<span class="pill p-ok">Reaches '+TD+'</span>':''}</td>
+    <td class="say">${x.orders.length?x.orders.map(esc).join(', '):'–'}</td></tr>${open?`<tr class="detail"><td colspan="9">${covDetail(x)}</td></tr>`:''}`;}).join('');
+  return head(`${TD}-day coverage`,`Finished-goods days + raw-material days should add up to ${TD}. ${asOf2()}`)+cfgBar()+`
+  <div class="big3">
+    <div class="b3" style="--c:var(--green)"><div class="top"><div class="v">${ok}</div>${xbtn('cov:ok')}</div><div class="t">Reach ${TD} days</div><div class="s">With FG stock, RM on hand and open POs. ${okOH} get there on hand alone.</div></div>
+    <div class="b3" style="--c:var(--red)"><div class="top"><div class="v">${P.fg.length-ok}</div>${xbtn('cov:short')}</div><div class="t">Short of ${TD} days</div><div class="s">A raw material runs out first. The orders page closes the gap.</div></div>
+    <div class="b3" style="--c:var(--blue)"><div class="top"><div class="v">${toOrder.length}</div>${xbtn('orders:all')}</div><div class="t">Materials to order</div><div class="s">${cans.length} cans · ${fk(cans.reduce((a,x)=>a+x.rec,0))} cans in total, in ${fmt(st.cfg.canMOQ)} MOQs.</div></div>
+  </div>
+  <div class="howto" style="margin:0 0 16px"><b>How the ${TD} days are built</b><dl>
+    <dt>Demand</dt><dd>Each fiscal period uses the bigger of open orders and forecast. P${p1?p1.p:''} orders so far are shown as orders / forecast and % of forecast booked. If orders pass forecast, orders win.</dd>
+    <dt>FG days</dt><dd>How long finished-goods stock lasts on that demand.</dd>
+    <dt>RM days</dt><dd>Extra days the raw materials can make after FG stock runs out: on hand first, then open POs on their due dates. The material that runs out first sets the limit.</dd>
+  </dl><div class="legend-row"><span><i class="lg s1"></i>FG days</span><span><i class="lg s2"></i>RM days</span><span><i class="lg tg"></i>${TD}-day target</span></div></div>
+  <div class="tools">${[['all','All',P.fg.length],['short','Short of '+TD,P.fg.length-ok],['ok','Reach '+TD,ok]].map(([k,l,n])=>`<button class="chip${st.covF===k?' on':''}" data-cf="${k}">${l}<span class="n">${n}</span></button>`).join('')}
+    <input class="search" id="cq" placeholder="Search item" value="${esc(st.covQ)}">${xbtn('cov:view','Export these '+rows.length)}</div>
+  <div class="tw"><table><thead><tr><th>Item</th><th class="num">P${p1?p1.p:''} orders / fcst</th><th class="num">P${p2?p2.p:''} orders / fcst</th><th class="num">FG days</th><th class="num">RM days</th><th class="num">Total</th><th>FG + RM vs ${TD}</th><th>Runs out first</th><th>Materials to order</th></tr></thead><tbody>${body||'<tr><td colspan="9" class="more">Nothing here.</td></tr>'}</tbody></table></div>
+  ${rows.length>st.limit.cov?`<div class="more"><button class="btn ghost" data-more="cov">Show all ${rows.length}</button></div>`:''}`;
+}
+function covDetail(x){
+  const mats=Object.entries(x.f.leaves).map(([c,q])=>({r:P.byCode[c],q})).filter(y=>y.r).sort((a,b)=>a.r.daysPO-b.r.daysPO);
+  const tr=mats.map(({r,q})=>`<tr><td><span class="code">${esc(r.code)}</span></td><td>${esc(short(r.desc))}</td><td class="num">${q<1?q.toFixed(3):q.toFixed(2)}</td><td class="num ${r.daysPO<P.TD?'neg':''}">${days(r.daysOH)} / ${days(r.daysPO)}</td><td class="num">${r.rec?fmt(r.rec):'–'}</td><td>${pill(ACT()[r.action])}${r.action==='later'?' '+dOff(r.orderBy):''}</td></tr>`).join('');
+  return `<div style="margin-bottom:10px">${xbtn('covone:'+x.code,'Export '+esc(x.code)+' (coverage + materials)')}</div>
+  <div class="dgrid"><div><h4>Demand by period</h4><table><thead><tr><th>Period</th><th class="num">Open orders</th><th class="num">Forecast</th><th class="num">% booked</th><th class="num">Used</th></tr></thead><tbody>
+  ${x.per.map(p=>`<tr><td>P${p.p}</td><td class="num">${fmt(p.ord)}</td><td class="num">${fmt(p.fc)}</td><td class="num">${p.pct==null?'–':Math.round(p.pct*100)+'%'}</td><td class="num"><b>${fmt(p.used)}</b>${p.over?' <span class="pill p-po">orders</span>':''}</td></tr>`).join('')}</tbody></table>
+  <p class="note">FG stock ${fmt(x.f.oh)} cases lasts ${days(x.fgDays)} days. RM needs to cover ${days(x.rmNeed)} more days to reach ${P.TD}.</p></div>
+  <div><h4>Materials · total days (on hand / with POs)</h4><table><thead><tr><th>Item code</th><th>Material</th><th class="num">Per case</th><th class="num">Days</th><th class="num">Order</th><th>Action</th></tr></thead><tbody>${tr}</tbody></table>
+  <p class="note">Days count from today and include this and every other item that uses the material.</p></div></div>`;
+}
+function ordRows(){const q=st.ordQ.toLowerCase();
+  return P.rm.filter(x=>(st.ordAll||x.rec>0)&&(st.ordF==='all'||(st.ordF==='cans'&&x.can)||(st.ordF==='other'&&!x.can))&&(!q||(x.code+' '+x.desc).toLowerCase().includes(q)))
+    .sort((a,b)=>(b.rec>0)-(a.rec>0)||(a.orderBy??999)-(b.orderBy??999)||a.daysPO-b.daysPO);}
+function pgOrd(){
+  const TD=P.TD,rows=ordRows(),o=P.rm.filter(x=>x.rec>0);
+  const n=k=>o.filter(x=>x.action===k).length;
+  const body=rows.slice(0,st.limit.ord).map(x=>{const k='or:'+x.code,open=st.open[k];const hit=x.fgs.filter(y=>y.need>0||true);
+    return `<tr class="row${open?' open':''}" data-k="${esc(k)}"><td>${pill(ACT()[x.action])}</td><td><span class="code">${esc(x.code)}</span></td><td style="min-width:200px"><b>${esc(short(x.desc))}</b><span class="desc">${esc(x.u)} · LT ${x.lt} d</span></td>
+    <td class="num">${fmt(x.oh)}</td><td class="num">${x.poIn?fmt(x.poIn):'–'}</td><td class="num">${fmt(x.need)}</td><td class="num ${x.shortQ?'neg':''}">${x.shortQ?fmt(x.shortQ):'–'}</td>
+    <td class="num"><b>${x.rec?fmt(x.rec):'–'}</b>${x.rec&&x.moq>1?`<span class="desc">${fmt(x.rec/x.moq)} × ${fmt(x.moq)}</span>`:''}</td>
+    <td class="num">${days(x.daysOH)} / ${days(x.daysPO)}</td><td class="num">${x.rec?(x.orderBy<=0?'<b class="neg">Today</b>':dOff(x.orderBy)):'–'}</td><td class="num">${x.needBy==null?'–':dOff(x.needBy)}</td>
+    <td class="say">${x.fgs.slice(0,4).map(y=>esc(y.code)).join(', ')}${x.fgs.length>4?' +'+(x.fgs.length-4):''}</td></tr>${open?`<tr class="detail"><td colspan="12">${ordDetail(x)}</td></tr>`:''}`;}).join('');
+  const cans=o.filter(x=>x.can);
+  return head('Orders to place',`Raw-material orders that bring every finished good to ${TD} total days. ${asOf2()}`)+cfgBar()+`
+  <div class="big3">
+    <div class="b3" style="--c:var(--red)"><div class="top"><div class="v">${n('late')}</div>${xbtn('orders:late')}</div><div class="t">Order now · expedite</div><div class="s">Runs out before a normal lead time. Place today and ask for faster delivery.</div></div>
+    <div class="b3" style="--c:var(--amber)"><div class="top"><div class="v">${n('now')}</div>${xbtn('orders:now')}</div><div class="t">Order this week</div><div class="s">Order-by date falls in the next 7 days. Still arrives in time at normal lead time.</div></div>
+    <div class="b3" style="--c:var(--blue)"><div class="top"><div class="v">${n('later')}</div>${xbtn('orders:later')}</div><div class="t">Order later</div><div class="s">Short of ${TD} days, with more than a week to spare. Order by the date shown.</div></div>
+  </div>
+  <p class="sec-s"><b>Cans:</b> ${cans.length} codes · ${fmt(cans.reduce((a,x)=>a+x.rec,0))} cans. <b>Order qty</b> = needed through day ${TD} − on hand − open POs due by then, rounded up to the MOQ. <b>Order by</b> = the day it runs out even with POs, minus lead time (NETSTOCK LT days).</p>
+  <div class="tools">${[['all','All',o.length],['cans','Cans',cans.length],['other','Other materials',o.length-cans.length]].map(([k,l,c])=>`<button class="chip${st.ordF===k?' on':''}" data-of="${k}">${l}<span class="n">${c}</span></button>`).join('')}
+  <button class="chip${st.ordAll?' on':''}" data-oa="1">Include covered</button>
+  <input class="search" id="oq" placeholder="Search material" value="${esc(st.ordQ)}">${xbtn('orders:view','Export these '+rows.length)}</div>
+  <div class="tw"><table><thead><tr><th>Action</th><th>Item code</th><th>Material</th><th class="num">On hand</th><th class="num">Open POs ≤ ${TD}d</th><th class="num">Needed ${TD}d</th><th class="num">Short</th><th class="num">Order qty</th><th class="num">Days now (OH / +PO)</th><th class="num">Order by</th><th class="num">Runs out</th><th>Items using it</th></tr></thead><tbody>${body||'<tr><td colspan="12" class="more">Nothing to order.</td></tr>'}</tbody></table></div>
+  ${rows.length>st.limit.ord?`<div class="more"><button class="btn ghost" data-more="ord">Show all ${rows.length}</button></div>`:''}`;
+}
+function ordDetail(x){
+  const fg=x.fgs.map(y=>{const c=P.fg.find(z=>z.code===y.code);return `<tr><td><span class="code">${esc(y.code)}</span> ${esc(c?c.desc:'')}</td><td class="num">${c?days(c.fgDays):'–'}</td><td class="num">${c?days(c.totPO):'–'}</td><td class="num">${y.q<1?y.q.toFixed(3):y.q.toFixed(2)}</td></tr>`;}).join('');
+  const po=x.pos.slice(0,10).map(p=>`<tr><td>${esc(p.po)}</td><td>${dIso(p.date)}</td><td class="num">${fmt(p.qty)}</td></tr>`).join('');
+  return `<div style="margin-bottom:10px">${xbtn('ordone:'+x.code,'Export '+esc(x.code)+' (items + POs)')}</div><div class="dgrid"><div><h4>Items using ${esc(x.code)}</h4><table><thead><tr><th>Item</th><th class="num">FG days</th><th class="num">Total days</th><th class="num">Per case</th></tr></thead><tbody>${fg}</tbody></table></div>
+  <div><h4>Open POs</h4>${po?`<table><thead><tr><th>PO</th><th>Due</th><th class="num">Qty</th></tr></thead><tbody>${po}</tbody></table>`:'<p class="note">No open POs.</p>'}
+  <p class="note">On hand ${fmt(x.oh)} + POs ${fmt(x.poIn)} − needed ${fmt(x.need)} = ${fmt(x.proj)} at day ${P.TD}.${x.rec?` Order ${fmt(x.rec)}${x.moq>1?` (${fmt(x.rec/x.moq)} × ${fmt(x.moq)} MOQ)`:''}.`:''}</p></div></div>`;
+}
+
 /* ----- Data & settings ----- */
 function pgData(){
   const slot=(k,l)=>`<div class="slot ${META.src[k]==='loaded'?'live':''}"><b>${l}</b><span>${esc(META[k]||'–')}</span><br><span>${META.src[k]==='loaded'?'loaded now':'built in'}</span></div>`;
@@ -656,20 +758,24 @@ function pgData(){
 /* ----- render + wiring ----- */
 function render(){
   nav();
-  $('#main').innerHTML={home:pgHome,items:pgItems,mat:pgMat,data:pgData}[st.page]();
+  $('#main').innerHTML={home:pgHome,items:pgItems,mat:pgMat,cov:pgCov,ord:pgOrd,data:pgData}[st.page]();
   $('#stamp').innerHTML=`PA ${META.paDate?dIso(META.paDate):'–'} · ${R.fgs.length} items`;
   const bindQ=(id,key)=>{const el=$(id);if(!el)return;el.oninput=()=>{st[key]=el.value;const p=el.selectionStart;render();const n=$(id);n.focus();n.setSelectionRange(p,p);};};
-  bindQ('#q','q');bindQ('#mq','mq');
+  bindQ('#q','q');bindQ('#mq','mq');bindQ('#cq','covQ');bindQ('#oq','ordQ');
+  const c60=$('#c60');if(c60){c60.onchange=()=>{st.cfg.total=Math.max(14,Math.min(90,+c60.value||60));run();};$('#cmoq').onchange=e=>{st.cfg.canMOQ=Math.max(1,+e.target.value||15200);run();};$('#cmul').onchange=e=>{st.cfg.canMult=e.target.checked;run();};}
   const b=$('#bat');if(b)b.onchange=()=>{st.useBatch=b.checked;run();};
   const g=$('#ign');if(g)g.onchange=()=>{st.ignore=g.value;run();};
 }
 const go=p=>{st.page=p;try{localStorage.setItem('fgdos2.page',p);}catch(_){}render();try{window.scrollTo(0,0);}catch(_){}};
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-x],[data-p],[data-f],[data-k],[data-more],[data-go],[data-m]');if(!t)return;
+  const t=e.target.closest('[data-x],[data-p],[data-f],[data-k],[data-more],[data-go],[data-m],[data-cf],[data-of],[data-oa]');if(!t)return;
   if(t.dataset.x){doExport(t.dataset.x);return;}
   if(t.dataset.p)go(t.dataset.p);
   else if(t.dataset.go){st.filter=t.dataset.go;st.q='';go('items');}
   else if(t.dataset.f){st.filter=t.dataset.f;render();}
+  else if(t.dataset.cf){st.covF=t.dataset.cf;render();}
+  else if(t.dataset.of){st.ordF=t.dataset.of;render();}
+  else if(t.dataset.oa){st.ordAll=!st.ordAll;render();}
   else if(t.dataset.m){st.mAll=t.dataset.m==='all';render();}
   else if(t.dataset.more){st.limit[t.dataset.more]=1e9;render();}
   else if(t.dataset.k){st.open[t.dataset.k]=!st.open[t.dataset.k];render();}
@@ -702,6 +808,58 @@ fi.onchange=()=>{loadFiles([...fi.files]);fi.value='';};
 ['dragleave','drop'].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();if(ev==='drop'||!e.relatedTarget)drop.classList.remove('hot');}));
 document.addEventListener('drop',e=>{if(e.dataTransfer&&e.dataTransfer.files.length)loadFiles([...e.dataTransfer.files]);});
 
+/* ================= 60-day plan: FG days + RM days = total target; RM orders to get there =================
+   For every FG, demand per fiscal period = the bigger of open orders and forecast (orders first, forecast fills the rest).
+   RM is needed only once FG stock is used up, so an RM's "total days" is the day its on-hand (then POs) can no
+   longer feed the FGs that use it. Order quantity = RM needed through the target day − on hand − open POs due by then,
+   rounded up to the MOQ. Order-by date = the day the RM runs out (with POs) − its lead time. */
+const CAN=c=>/^12\d{3}$/.test(c);
+function plan60(R,M,cfg){
+  const T=R.T,TD=Math.min(H-1,cfg.total||60);
+  const perIdx=FISCAL26.findIndex(P=>T>=P.sd&&T<=P.ed);
+  const periods=[perIdx,perIdx+1].filter(i=>i>=0&&i<12).map(i=>FISCAL26[i]);
+  const off=d=>Math.round((d-T)/DAY);
+  /* ---- materials ---- */
+  const rm=R.rmList.map(r=>{
+    const lt=(M.stock[r.code]&&M.stock[r.code].lt)||(CAN(r.code)?28:cfg.defLT||14);
+    const need=r.cum[TD-1]||0;
+    let poIn=0;for(const p of r.pos)if(p.o<TD)poIn+=p.qty;
+    const proj=r.oh+poIn-need;
+    const shortQ=Math.max(0,Math.ceil(-proj));
+    const moq=CAN(r.code)?(cfg.canMOQ||15200):(cfg.otherMOQ||1);
+    const mult=CAN(r.code)&&cfg.canMult?moq:1;
+    let rec=0;if(shortQ>0){rec=Math.max(moq,Math.ceil(shortQ/mult)*mult);}
+    const daysOH=r.runOH==null?H:r.runOH,daysPO=r.runPO==null?H:r.runPO;
+    const needBy=r.runPO; // day RM runs dry even with POs
+    const orderBy=needBy==null?null:needBy-lt;
+    let action='ok';
+    if(rec>0){action=needBy!=null&&needBy<lt?'late':(orderBy!=null&&orderBy<=7?'now':'later');}
+    const fgs=r.fgs.map(x=>({...x,need60:0}));
+    return {code:r.code,desc:r.desc,u:r.u,oh:r.oh,lt,need,poIn,proj,shortQ,moq,rec,daysOH,daysPO,needBy,orderBy,action,
+      pos:r.pos,stale:r.stale,fgs:r.fgs,can:CAN(r.code),nextPO:r.nextPO};
+  });
+  const byCode={};rm.forEach(x=>byCode[x.code]=x);
+  /* ---- finished goods ---- */
+  const fg=R.fgs.map(f=>{
+    const fgDays=Math.min(H,f.dos);
+    let wallOH=null,wallPO=null;
+    for(const c in f.leaves){const x=byCode[c];if(!x)continue;
+      if(wallOH==null||x.daysOH<wallOH.daysOH)wallOH=x;
+      if(wallPO==null||x.daysPO<wallPO.daysPO)wallPO=x;}
+    const totOH=Math.min(H,Math.max(fgDays,wallOH?wallOH.daysOH:H));
+    const totPO=Math.min(H,Math.max(fgDays,wallPO?wallPO.daysPO:H));
+    const per=periods.map(P=>{
+      const fc=f.fcP?f.fcP[P.p-1]:0;let ord=0;
+      for(const l of f.lines){const d=fromIso(l.pick);if(d&&d>=P.sd&&d<=P.ed)ord+=l.qty;else if(P===periods[0]&&d&&d<P.sd)ord+=l.qty;}
+      return {p:P.p,fc,ord,pct:fc>0?ord/fc:null,used:Math.max(fc,ord),over:ord>fc};
+    });
+    const orders=[...new Set(Object.keys(f.leaves).map(c=>byCode[c]).filter(x=>x&&x.rec>0).map(x=>x.code))];
+    return {f,code:f.code,desc:f.desc,fgDays,totOH,totPO,rmOH:Math.max(0,totOH-fgDays),rmPO:Math.max(0,totPO-fgDays),
+      rmNeed:Math.max(0,TD-fgDays),wallOH,wallPO,per,orders,ok:totPO>=TD,okOH:totOH>=TD};
+  });
+  return {TD,periods,rm,fg,byCode};
+}
+
 /* ================= Excel exports (xlsx-js-style) ================= */
 const XC={ink:'17344E',dim:'5B7A93',blue:'0B76C0',line:'DBE8F2',hdr:'0B76C0',band:'F2F8FD',
   red:'FDEAEA',redT:'C62020',orange:'FDF1E2',orangeT:'B85A00',green:'E6F6EE',greenT:'137A48',amber:'FBF4DC',amberT:'8A6700',grey:'EEF2F6'};
@@ -715,9 +873,10 @@ const STATUS_TXT=()=>({red:"Can't fill open orders",orange:'Under '+R.target+' d
 const MAKE_TXT={ready:'Yes, make now',poInTime:'Wait for PO',short:'No, material short',nobom:'No BOM',ok:'No need to make'};
 function statusFill(v){
   const s=String(v||'');
-  if(/^Can't fill|^No, material|^Short/.test(s))return [XC.red,XC.redT];
-  if(/^Under|^Wait/.test(s))return [XC.orange,XC.orangeT];
-  if(/\+ days$|^Yes|^OK/.test(s))return [XC.green,XC.greenT];
+  if(/^Can't fill|^No, material|^Short|expedite/.test(s))return [XC.red,XC.redT];
+  if(/^Under|^Wait|^Order this week/.test(s))return [XC.orange,XC.orangeT];
+  if(/^Order by/.test(s))return ['E4F1FB',XC.blue];
+  if(/\+ days$|^Yes|^OK|^Reaches|^Covered/.test(s))return [XC.green,XC.greenT];
   return null;
 }
 /* one styled table sheet: title, subtitle, header row, data rows with number formats + status colours */
@@ -866,7 +1025,9 @@ function buildExport(key){
       ['PA view',paSheet(attn)],['Materials short',tableSheet('Materials short',subOf(short.length+' materials'),matCols(),short)],
       ['Material by item',tableSheet('Short materials · which items need them',subOf(),matItemCols(),matItemRows(short))],
       ['All materials',tableSheet('All materials used',subOf('ordered by run-out date with POs'),matCols(),R.rmList)],
-      ['Open orders',tableSheet('Open orders',subOf('stock left after each order'),orderCols(),orderRows(F))]]),`FG_Days_of_Supply_${d}.xlsx`];
+      ['Open orders',tableSheet('Open orders',subOf('stock left after each order'),orderCols(),orderRows(F))],
+      [`${P.TD}-day coverage`,tableSheet(`${P.TD}-day coverage by item`,planSub(),covCols(),P.fg.slice().sort((a,b)=>a.totPO-b.totPO))],
+      ['Orders to place',tableSheet('Orders to place',planSub(),ordCols(),P.rm.filter(x=>x.rec>0).sort((a,b)=>(a.orderBy??999)-(b.orderBy??999)))]]),`FG_Days_of_Supply_${d}.xlsx`];
   }
   let m;
   if((m=key.match(/^color:(\w+)$/))){const g=F.filter(f=>color(f)===m[1]);return itemsBook(S[m[1]],g,`FG_${S[m[1]].replace(/\W+/g,'_')}_${d}.xlsx`);}
@@ -886,11 +1047,50 @@ function buildExport(key){
   return null;
 }
 
+
+/* ---- 60-day plan sheets ---- */
+function covCols(){const TD=P.TD,[p1,p2]=P.periods;const pc=(x,i,k)=>x.per[i]?x.per[i][k]:null;
+  return [{h:'Item',k:'code',w:11,bold:true},{h:'Description',k:'desc',w:32},{h:'Status',k:x=>x.ok?'Reaches '+TD+' days':'Short of '+TD+' days',w:17,t:'st'},
+  {h:`P${p1?p1.p:''} open orders`,k:x=>pc(x,0,'ord'),w:11,t:'n'},{h:`P${p1?p1.p:''} forecast`,k:x=>pc(x,0,'fc'),w:11,t:'n'},{h:`P${p1?p1.p:''} % booked`,k:x=>x.per[0]&&x.per[0].pct!=null?Math.round(x.per[0].pct*100):null,w:9,t:'n'},
+  {h:`P${p2?p2.p:''} open orders`,k:x=>pc(x,1,'ord'),w:11,t:'n'},{h:`P${p2?p2.p:''} forecast`,k:x=>pc(x,1,'fc'),w:11,t:'n'},{h:`P${p2?p2.p:''} % booked`,k:x=>x.per[1]&&x.per[1].pct!=null?Math.round(x.per[1].pct*100):null,w:9,t:'n'},
+  {h:'FG cases on hand',k:x=>x.f.oh,w:11,t:'n'},{h:'FG days',k:x=>+x.fgDays.toFixed(1),w:8,t:'n1'},{h:'RM days (on hand)',k:x=>+x.rmOH.toFixed(1),w:10,t:'n1'},{h:'RM days (with POs)',k:x=>+x.rmPO.toFixed(1),w:10,t:'n1'},
+  {h:'Total days (on hand)',k:x=>+x.totOH.toFixed(1),w:10,t:'n1'},{h:'Total days (with POs)',k:x=>+x.totPO.toFixed(1),w:10,t:'n1'},{h:'RM days needed',k:x=>+x.rmNeed.toFixed(1),w:10,t:'n1'},
+  {h:'Runs out first (code)',k:x=>!x.ok&&x.wallPO?x.wallPO.code:'',w:12},{h:'Runs out first',k:x=>!x.ok&&x.wallPO?short(x.wallPO.desc):'',w:28},{h:'Materials to order',k:x=>x.orders.join(', '),w:30,wrap:true}];}
+function ordCols(){const TD=P.TD;
+  return [{h:'Action',k:x=>actTxt(x),w:20,t:'st'},{h:'Item code',k:'code',w:10,bold:true},{h:'Material',k:x=>short(x.desc),w:32},{h:'UOM',k:'u',w:7},{h:'Lead time (days)',k:'lt',w:9,t:'n'},
+  {h:'On hand',k:'oh',w:12,t:'n'},{h:`Open POs due by day ${TD}`,k:'poIn',w:12,t:'n'},{h:`Needed through day ${TD}`,k:x=>Math.round(x.need),w:13,t:'n'},{h:'Short',k:'shortQ',w:12,t:'n'},
+  {h:'MOQ',k:x=>x.moq>1?x.moq:null,w:9,t:'n'},{h:'Order qty',k:x=>x.rec||null,w:12,t:'n',bold:true},{h:'MOQ lots',k:x=>x.rec&&x.moq>1?x.rec/x.moq:null,w:8,t:'n'},
+  {h:'Days covered (on hand)',k:x=>x.daysOH,w:10,t:'n'},{h:'Days covered (with POs)',k:x=>x.daysPO,w:10,t:'n'},
+  {h:'Order by',k:x=>x.rec?toDate(Math.max(0,x.orderBy)):null,w:13,t:'d'},{h:'Runs out',k:x=>x.needBy==null?null:toDate(x.needBy),w:13,t:'d'},
+  {h:'Next PO #',k:x=>x.nextPO?x.nextPO.po:'',w:11},{h:'Next PO date',k:x=>x.nextPO?isoDate(x.nextPO.date):null,w:13,t:'d'},{h:'Next PO qty',k:x=>x.nextPO?x.nextPO.qty:null,w:12,t:'n'},
+  {h:'Items using it',k:x=>x.fgs.map(y=>y.code).join(', '),w:40,wrap:true}];}
+function ordItemRows(list){const o=[];for(const x of list)for(const y of x.fgs){const c=P.fg.find(z=>z.code===y.code);o.push({mc:x.code,md:short(x.desc),fc:y.code,fd:c?c.desc:'',q:+(+y.q).toFixed(4),fgd:c?+c.fgDays.toFixed(1):null,tot:c?+c.totPO.toFixed(1):null,rec:x.rec||null});}return o;}
+const ordItemCols=()=>[{h:'Material code',k:'mc',w:12,bold:true},{h:'Material',k:'md',w:30},{h:'Item',k:'fc',w:11,bold:true},{h:'Item description',k:'fd',w:32},{h:'Per case',k:'q',w:9},{h:'FG days',k:'fgd',w:8,t:'n1'},{h:'Total days (with POs)',k:'tot',w:10,t:'n1'},{h:'Material order qty',k:'rec',w:12,t:'n'}];
+function planSub(x){return `As of ${iso(R.T)} · target ${P.TD} total days (FG + RM) · can MOQ ${fmt(st.cfg.canMOQ)}${x?' · '+x:''}`;}
+function planBook(fgList,rmList,name,title){
+  const sh=[];
+  if(fgList)sh.push([`${P.TD}-day coverage`,tableSheet(title||`${P.TD}-day coverage by item`,planSub(fgList.length+' items'),covCols(),fgList)]);
+  if(rmList){sh.push(['Orders to place',tableSheet('Orders to place',planSub(rmList.length+' materials'),ordCols(),rmList)]);
+    sh.push(['Order by item',tableSheet('Which items each order supports',planSub(),ordItemCols(),ordItemRows(rmList))]);}
+  return [wbOf(sh),name];
+}
+function buildPlanExport(key){
+  const d=iso(R.T);let m;
+  if(key==='cov:ok')return planBook(P.fg.filter(x=>x.ok),null,`FG_${P.TD}d_reaching_${d}.xlsx`);
+  if(key==='cov:short'){const f=P.fg.filter(x=>!x.ok).sort((a,b)=>a.totPO-b.totPO);return planBook(f,P.rm.filter(x=>x.rec>0),`FG_${P.TD}d_short_${d}.xlsx`);}
+  if(key==='cov:view')return planBook(covRows(),null,`FG_${P.TD}d_coverage_${d}.xlsx`);
+  if((m=key.match(/^orders:(\w+)$/))){const L=m[1]==='view'?ordRows():P.rm.filter(x=>x.rec>0&&(m[1]==='all'||x.action===m[1])).sort((a,b)=>(a.orderBy??999)-(b.orderBy??999));
+    return planBook(null,L,`Orders_to_place_${m[1]}_${d}.xlsx`);}
+  if((m=key.match(/^covone:(.+)$/))){const x=P.fg.find(y=>y.code===m[1]);const L=Object.keys(x.f.leaves).map(c=>P.byCode[c]).filter(Boolean);return planBook([x],L,`${x.code.replace(/\W+/g,'_')}_${P.TD}d_${d}.xlsx`);}
+  if((m=key.match(/^ordone:(.+)$/))){const x=P.byCode[m[1]];return planBook(P.fg.filter(y=>x.fgs.some(z=>z.code===y.code)),[x],`Order_${x.code}_${d}.xlsx`);}
+  return null;
+}
+
 /* ---- save: the viewer's download prompt inside Claude, a normal download everywhere else ---- */
 let DL=null;
 try{if(window.claude&&window.claude.use)window.claude.use('downloads').then(d=>{DL=d;}).catch(()=>{});}catch(_){}
 async function doExport(key){
-  let out;try{out=buildExport(key);}catch(e){toast('Export failed: '+e.message);return;}
+  let out;try{out=buildPlanExport(key)||buildExport(key);}catch(e){toast('Export failed: '+e.message);return;}
   if(!out)return;
   const [wb,name]=out;
   if(DL){
@@ -905,7 +1105,7 @@ const xbtn=(key,label='Excel')=>`<button class="xbtn" data-x="${esc(key)}" title
 
 (function init(){
   $('#today').value=iso(new Date());
-  try{const p=localStorage.getItem('fgdos2.page');if(p&&['home','items','mat','data'].includes(p))st.page=p;}catch(_){}
+  try{const p=localStorage.getItem('fgdos2.page');if(p&&['home','items','mat','cov','ord','data'].includes(p))st.page=p;}catch(_){}
   run();
 })();
 </script>
