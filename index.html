@@ -277,6 +277,10 @@ td .desc{color:var(--dim);font-size:11.5px;display:block;max-width:220px;white-s
 .dd-opt small{font-family:var(--mono);font-size:11px;color:var(--faint);white-space:nowrap}
 .tok-line{border-color:var(--purple)}
 .bomw{overflow-x:auto}
+tr.tot td{font-weight:700;border-top:2px solid var(--ink);background:var(--panel2);position:sticky;bottom:0}
+tr.sub td{font-size:11.5px;color:var(--dim);padding-top:3px;padding-bottom:3px}
+.ordw{max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+.ordw table{border:0!important}
 .dgrid.one{grid-template-columns:1fr}
 .dgrid.one>div:last-child table{max-width:760px}
 .howto{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin-top:22px;font-size:13px;max-width:none}
@@ -802,7 +806,11 @@ function itemTable(rows,rank=true){
 }
 function detail(f){
   const T=R.target;
-  const ord=f.lines.slice(0,25).map(l=>`<tr><td>${dIso(l.pick)}</td><td>${esc(l.cust)}</td><td class="num">${fmt(l.qty)}</td><td class="num ${l.bal<0?'neg':''}">${fmt(l.bal)}</td></tr>`).join('');
+  const ord=f.lines.map(l=>`<tr><td>${dIso(l.pick)}</td><td>${esc(l.cust)}</td><td class="num">${fmt(l.qty)}</td><td class="num ${l.bal<0?'neg':''}">${fmt(l.bal)}</td></tr>`).join('');
+  const oTot=f.lines.reduce((a,l)=>a+l.qty,0),oEnd=f.oh-oTot,nCust=new Set(f.lines.map(l=>l.cust)).size;
+  const byCust={};for(const l of f.lines)byCust[l.cust]=(byCust[l.cust]||0)+l.qty;
+  const custRows=nCust>1?Object.entries(byCust).sort((a,b)=>b[1]-a[1]).map(([c,q])=>`<tr class="sub"><td></td><td>${esc(c)}</td><td class="num">${fmt(q)}</td><td></td></tr>`).join(''):'';
+  const tfoot=`<tfoot><tr class="tot"><td>Total</td><td>${f.lines.length} order${f.lines.length>1?'s':''} · ${nCust} customer${nCust>1?'s':''}</td><td class="num">${fmt(oTot)}</td><td class="num ${oEnd<0?'neg':''}">${fmt(oEnd)}</td></tr>${custRows}</tfoot>`;
   const mats=bomRows(f);
   const mr=mats.map(x=>`<tr><td><span class="code">${esc(x.c)}</span></td><td>${esc(x.d)}</td><td class="num">${x.q<1?x.q.toFixed(3):x.q.toFixed(2)}</td>
     ${f.make?`<td class="num">${fmt(x.need)}</td><td class="num ${x.short?'neg':''}">${fmt(x.have)}</td>`:''}
@@ -811,7 +819,7 @@ function detail(f){
     <td class="num ${x.left!=null&&x.left<0?'neg':''}">${x.left==null?'–':fmt(x.left)}</td><td>${pill(x.st)}</td></tr>`).join('');
   return `<div style="margin-bottom:10px">${xbtn('item:'+f.code,'Export '+esc(f.code)+' (orders + materials)')}</div><div class="dgrid one"><div><h4>Bill of materials · ${f.make?`make ${fmt(f.make)} cases ${f.state==='pa'?'(fills all open orders)':'(back to '+T+' days)'}`:'no cases to make now'}</h4>${mr?`<div class="bomw"><table><thead><tr><th>Item code</th><th>Material</th><th class="num">Per case</th>${f.make?'<th class="num">Need now</th><th class="num">Have*</th>':''}<th class="num">On hand</th><th class="num">Open POs</th><th class="num">Lasts (OH / +PO)</th><th class="num">Left day ${P.TD}</th><th>Status</th></tr></thead><tbody>${mr}</tbody></table></div>
     <p class="note">${f.make?'*Have = on hand after items that run out sooner take their share. ':''}Lasts = days until the material runs dry feeding every item that uses it, on hand only / with open POs. Left day ${P.TD} = on hand + POs due by then − what every item needs through day ${P.TD}. Worst first.</p>`:'<p class="note">No cans, caps, boxes or ingredients in scope for this item.</p>'}</div>
-  <div><h4>Open orders · starting stock ${fmt(f.oh)} cases</h4>${f.lines.length?`<table><thead><tr><th>Pick date</th><th>Customer</th><th class="num">Cases</th><th class="num">Stock left</th></tr></thead><tbody>${ord}</tbody></table>${f.lines.length>25?`<p class="note">+${f.lines.length-25} more orders.</p>`:''}`:'<p class="note">No open orders. Demand is forecast only.</p>'}
+  <div><h4>Open orders · starting stock ${fmt(f.oh)} cases${f.lines.length?` · ${fmt(f.lines.reduce((a,l)=>a+l.qty,0))} cases ordered`:''}</h4>${f.lines.length?`<div class="ordw"><table><thead><tr><th>Pick date</th><th>Customer</th><th class="num">Cases</th><th class="num">Stock left</th></tr></thead><tbody>${ord}</tbody>${tfoot}</table></div>`:'<p class="note">No open orders. Demand is forecast only.</p>'}
     <p class="note">Next ${T} days: ${fmt(f.dT)} cases needed (orders ${fmt(f.paD.slice(0,T).reduce((a,b)=>a+b,0))} + extra forecast ${fmt(f.fcD.slice(0,T).reduce((a,b)=>a+b,0))}).</p></div></div>`;
 }
 
