@@ -237,27 +237,6 @@ td .desc{color:var(--dim);font-size:11.5px;display:block;max-width:220px;white-s
 .mbar{position:relative;height:8px;background:var(--panel2);border-radius:4px}
 .mbar i{position:absolute;left:0;top:0;bottom:0;border-radius:4px}
 .md{font-family:var(--mono);text-align:right}
-.fbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:50;background:var(--bg);padding:10px 0 10px;margin:-22px 0 14px;border-bottom:1px solid var(--line)}
-.fb-row{display:flex;gap:10px;align-items:center}
-.fb-search{position:relative;flex:1;min-width:0;display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line2);border-radius:10px;padding:0 12px;color:var(--dim)}
-.fb-search:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-bg)}
-.fb-search input{all:unset;flex:1;min-width:0;padding:10px 0;font-size:14px;color:var(--ink)}
-.fb-search input::placeholder{color:var(--faint)}
-.fb-clear{all:unset;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--blue);padding:8px 10px;border-radius:8px}
-.fb-clear:hover{background:var(--blue-bg)}
-.fb-sug{position:absolute;left:0;right:0;top:calc(100% + 6px);background:var(--panel);border:1px solid var(--line2);border-radius:10px;box-shadow:0 12px 30px rgba(23,52,78,.16);max-height:420px;overflow:auto;z-index:60;padding:6px}
-.sg-h{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);padding:8px 8px 4px}
-.sg{all:unset;box-sizing:border-box;display:flex;gap:6px;width:100%;cursor:pointer;padding:7px 8px;border-radius:6px;font-size:13px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sg b{font-family:var(--mono);font-weight:600}
-.sg:hover,.sg:focus-visible{background:var(--blue-bg)}
-.sg-text{justify-content:space-between;color:var(--dim)} .sg-text i{font-style:normal} .sg-text span{font-size:11px;color:var(--faint)}
-.fb-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;align-items:center}
-.tok{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;padding:3px 4px 3px 9px;border-radius:14px;border:1px solid var(--line2);background:var(--panel)}
-.tok em{font-style:normal;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
-.tok-item{border-color:var(--blue)} .tok-cust{border-color:var(--green)} .tok-mat{border-color:var(--orange)}
-.tok button{all:unset;cursor:pointer;width:18px;height:18px;border-radius:50%;text-align:center;line-height:18px;color:var(--dim)}
-.tok button:hover{background:var(--panel2);color:var(--red)}
-.fb-count{font-size:12px;color:var(--dim);margin-left:4px}
 .howto{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin-top:22px;font-size:13px;max-width:none}
 .howto dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;margin:8px 0 0}
 .howto dt{font-weight:700}
@@ -282,18 +261,7 @@ td .desc{color:var(--dim);font-size:11.5px;display:block;max-width:220px;white-s
       <button class="btn xall" data-x="all">Export everything to Excel</button>
     </div>
   </aside>
-  <main>
-    <div class="fbar" id="fbar">
-      <div class="fb-row">
-        <div class="fb-search"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m11 11 3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-          <input id="gq" type="text" autocomplete="off" placeholder="Search items, customers, can or material codes — pick several" aria-label="Filter every page">
-          <div class="fb-sug" id="gsug" hidden></div></div>
-        <button class="fb-clear" id="gclear" hidden>Clear all</button>
-      </div>
-      <div class="fb-chips" id="gchips" hidden></div>
-    </div>
-    <div id="main"></div>
-  </main>
+  <main id="main"></main>
 </div>
 <aside class="drawer" id="drawer" hidden aria-label="Details"></aside>
 <div class="toast" id="toast" hidden></div>
@@ -585,62 +553,18 @@ const EMB={"pa":{"A01":{"qoh":666,"desc":"LAURA LYNN 21.5% REG 12PK/7OZ","lines"
 const $=s=>document.querySelector(s);
 const M={pa:EMB.pa,fc:EMB.fc,stock:EMB.stock,bom:EMB.bom,bomDesc:EMB.bomDesc,po:EMB.po,lto:new Set(EMB.lto)};
 const META={...EMB.meta,src:{pa:'snapshot',forecast:'snapshot',stock:'snapshot',bom:'snapshot',po:'snapshot'}};
-const st={tok:[],view:'rows',sel:null,line:'all',scopePre:'10, 11, 12, 13',scopeEx:'SUGAR, GRANULATED SUGAR, ORGANIC SUGAR, NITROUS, NITROGEN, WATER, CITY WATER, LIQUID CORN, HFC, NFDM, CO2',cfg:{total:60,canMOQ:15200,canMult:true},covF:'short',covQ:'',ordF:'all',ordQ:'',ordAll:false,page:'home',filter:'all',q:'',open:{},mq:'',mAll:false,limit:{fg:100,m:100,cov:100,ord:100},useBatch:false,ignore:''};
+const st={view:'rows',sel:null,line:'all',scopePre:'10, 11, 12, 13',scopeEx:'SUGAR, GRANULATED SUGAR, ORGANIC SUGAR, NITROUS, NITROGEN, WATER, CITY WATER, LIQUID CORN, HFC, NFDM, CO2',cfg:{total:60,canMOQ:15200,canMult:true},covF:'short',covQ:'',ordF:'all',ordQ:'',ordAll:false,page:'home',filter:'all',q:'',open:{},mq:'',mAll:false,limit:{fg:100,m:100,cov:100,ord:100},useBatch:false,ignore:''};
 let R=null,P=null;
 // commodity = an ingredient (10xxx) whose name STARTS with one of the keywords, e.g. "GRANULATED SUGAR" but not "BURNT SUGAR FLAVOR"; cans/caps/boxes are never left out
 const isCommodity=(c,ex)=>{if(!/^10/.test(c))return false;const d=short((M.stock[c]&&M.stock[c].d)||'').toUpperCase().replace(/^\([^)]*\)\s*/,'');return ex.some(k=>d.startsWith(k));};
 const LINES={'0010':'Aerosol','0040':'Pops','0060':'Pops','0050':'Drinks','0030':'Water','0070':'Water'};
 const lineOf=c=>{const s=M.stock[c];if(s&&LINES[s.l])return LINES[s.l];const k=(c||'')[0];return k==='A'?'Aerosol':k==='P'?'Pops':k==='H'?'Drinks':(k==='W'||k==='L')?'Water':'Other';};
 const inLine=c=>st.line==='all'||lineOf(c)===st.line;
-/* ---- global filter: product line + chips (items, customers, materials, free text). Same type = any of; different types = all of ---- */
-let VIS=null; // cached {fg:Set, rm:Set|null} for the current render
-function visSets(){
-  if(VIS)return VIS;
-  const T=st.tok,by=t=>T.filter(x=>x.t===t).map(x=>x.v);
-  const items=new Set(by('item')),custs=new Set(by('cust')),mats=new Set(by('mat')),texts=by('text').map(s=>s.toLowerCase());
-  const fg=new Set();
-  for(const f of R.fgs){
-    if(!inLine(f.code))continue;
-    if(items.size&&!items.has(f.code))continue;
-    if(custs.size&&!f.lines.some(l=>custs.has(l.cust)))continue;
-    if(mats.size&&!Object.keys(f.leaves).some(c=>mats.has(c)))continue;
-    if(texts.length&&!texts.every(t=>(f.code+' '+f.desc).toLowerCase().includes(t)||f.lines.some(l=>l.cust.toLowerCase().includes(t)||l.order.toLowerCase().includes(t))||Object.keys(f.leaves).some(c=>c.toLowerCase().includes(t)||((M.stock[c]&&M.stock[c].d)||'').toLowerCase().includes(t))))continue;
-    fg.add(f.code);
-  }
-  const fgFilter=items.size||custs.size||texts.length||st.line!=='all';
-  let rm=null;
-  if(mats.size||fgFilter){rm=new Set();for(const r of R.rmList){
-    if(mats.size&&!mats.has(r.code))continue;
-    if(fgFilter&&!r.fgs.some(x=>fg.has(x.code)))continue;
-    rm.add(r.code);}}
-  return VIS={fg,rm};
-}
-const VF=()=>{const s=visSets().fg;return R.fgs.filter(f=>s.has(f.code));};
-const VR=()=>{const s=visSets().rm;return s?R.rmList.filter(r=>s.has(r.code)):R.rmList;};
-const VPF=()=>{const s=visSets().fg;return P.fg.filter(x=>s.has(x.code));};
-const VPR=()=>{const s=visSets().rm;return s?P.rm.filter(r=>s.has(r.code)):P.rm;};
-const TOKLAB={item:'Item',cust:'Customer',mat:'Material',text:'Text'};
-function fDesc(){const p=[];if(st.line!=='all')p.push(st.line+' only');for(const t of ['item','cust','mat','text']){const v=st.tok.filter(x=>x.t===t).map(x=>x.v);if(v.length)p.push(TOKLAB[t]+(v.length>1?'s':'')+': '+v.join(', '));}return p.join(' · ');}
-function saveTok(){try{localStorage.setItem('fgdos2.tok',JSON.stringify(st.tok));}catch(_){}}
-function addTok(t,v){if(!v)return;if(!st.tok.some(x=>x.t===t&&x.v===v))st.tok.push({t,v});saveTok();$('#gq').value='';$('#gsug').hidden=true;render();}
-function renderChips(){
-  const c=$('#gchips');const has=st.tok.length>0;c.hidden=!has;$('#gclear').hidden=!has;
-  c.innerHTML=st.tok.map((x,i)=>`<span class="tok tok-${x.t}"><em>${TOKLAB[x.t]}</em>${esc(x.v)}<button data-untok="${i}" aria-label="Remove ${esc(x.v)}">×</button></span>`).join('')+(has?`<span class="fb-count">${visSets().fg.size} items${visSets().rm?' · '+visSets().rm.size+' materials':''} match</span>`:'');
-}
-let CUST=null;function custList(){if(CUST)return CUST;const s=new Map();for(const c in M.pa)for(const l of M.pa[c].lines){if(l.cust)s.set(l.cust,(s.get(l.cust)||0)+l.qty);}return CUST=[...s.entries()].sort((a,b)=>b[1]-a[1]).map(x=>x[0]);}
-function suggest(q){
-  const s=q.trim().toLowerCase();if(!s)return '';
-  const has=(t,v)=>st.tok.some(x=>x.t===t&&x.v===v);
-  const it=R.fgs.filter(f=>(f.code+' '+f.desc).toLowerCase().includes(s)&&!has('item',f.code)).sort((a,b)=>(b.code.toLowerCase().startsWith(s))-(a.code.toLowerCase().startsWith(s))).slice(0,6);
-  const cu=custList().filter(c=>c.toLowerCase().includes(s)&&!has('cust',c)).slice(0,6);
-  const ma=R.rmList.filter(r=>(r.code+' '+r.desc).toLowerCase().includes(s)&&!has('mat',r.code)).sort((a,b)=>(b.code.startsWith(s))-(a.code.startsWith(s))).slice(0,6);
-  const grp=(lab,arr,fn)=>arr.length?`<div class="sg-h">${lab}</div>`+arr.map(fn).join(''):'';
-  return `<button class="sg sg-text" data-addtok="text" data-v="${esc(q.trim())}"><i>Search everything for <b>"${esc(q.trim())}"</b></i><span>Enter</span></button>`+
-    grp('Items',it,f=>`<button class="sg" data-addtok="item" data-v="${esc(f.code)}"><b>${esc(f.code)}</b> ${esc(f.desc)}</button>`)+
-    grp('Customers',cu,c=>`<button class="sg" data-addtok="cust" data-v="${esc(c)}">${esc(c)}</button>`)+
-    grp('Cans & materials',ma,r=>`<button class="sg" data-addtok="mat" data-v="${esc(r.code)}"><b>${esc(r.code)}</b> ${esc(short(r.desc))}</button>`);
-}
-const lineTag=()=>{const d=fDesc();return d?` · <span class="pill p-ready">Filtered: ${esc(d.length>90?d.slice(0,88)+'…':d)}</span>`:'';};
+const VF=()=>R.fgs.filter(f=>inLine(f.code));
+const VR=()=>st.line==='all'?R.rmList:R.rmList.filter(r=>r.fgs.some(x=>inLine(x.code)));
+const VPF=()=>P.fg.filter(x=>inLine(x.code));
+const VPR=()=>st.line==='all'?P.rm:P.rm.filter(r=>r.fgs.some(x=>inLine(x.code)));
+const lineTag=()=>st.line==='all'?'':` · <span class="pill p-ready">${esc(st.line)} only</span>`;
 
 const fmt=n=>n==null||isNaN(n)?'–':Math.round(n).toLocaleString('en-US');
 const fk=n=>{n=Math.round(n||0);const a=Math.abs(n);return a>=1e6?(n/1e6).toFixed(1)+'M':a>=1e4?Math.round(n/1e3)+'k':a>=1e3?(n/1e3).toFixed(1)+'k':String(n);};
@@ -966,9 +890,7 @@ function pgData(){
 
 /* ----- render + wiring ----- */
 function render(){
-  VIS=null;
   nav();
-  renderChips();
   const dh=drawerHTML();const dr=$('#drawer');dr.innerHTML=dh;dr.hidden=!dh;document.body.classList.toggle('has-drawer',!!dh);
   $('#main').innerHTML={home:pgHome,items:pgItems,mat:pgMat,cov:pgCov,ord:pgOrd,data:pgData}[st.page]();
   $('#stamp').innerHTML=`PA ${META.paDate?dIso(META.paDate):'–'} · ${VF().length} items`;
@@ -981,9 +903,7 @@ function render(){
 }
 const go=p=>{st.page=p;try{localStorage.setItem('fgdos2.page',p);}catch(_){}render();try{window.scrollTo(0,0);}catch(_){}};
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-addtok],[data-untok],[data-view],[data-close],[data-x],[data-p],[data-f],[data-k],[data-more],[data-go],[data-m],[data-cf],[data-of],[data-oa]');if(!t)return;
-  if(t.dataset.addtok){addTok(t.dataset.addtok,t.dataset.v);return;}
-  if(t.dataset.untok!=null){st.tok.splice(+t.dataset.untok,1);saveTok();render();return;}
+  const t=e.target.closest('[data-view],[data-close],[data-x],[data-p],[data-f],[data-k],[data-more],[data-go],[data-m],[data-cf],[data-of],[data-oa]');if(!t)return;
   if(t.dataset.x){doExport(t.dataset.x);return;}
   if(t.dataset.p)go(t.dataset.p);
   else if(t.dataset.go){st.filter=t.dataset.go;st.q='';go('items');}
@@ -999,15 +919,6 @@ document.addEventListener('click',e=>{
 });
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&st.sel){st.sel=null;render();return;}const t=e.target;if((e.key==='Enter'||e.key===' ')&&t.matches&&t.matches('.b3[data-go]')){e.preventDefault();t.click();}});
 ['#tgt','#today'].forEach(id=>$(id).addEventListener('change',run));
-{const gq=$('#gq'),sg=$('#gsug');
- gq.addEventListener('input',()=>{const h=suggest(gq.value);sg.innerHTML=h;sg.hidden=!h;});
- gq.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();const v=gq.value.trim();if(!v)return;
-   const ex=R.fgs.find(f=>f.code.toLowerCase()===v.toLowerCase());const m=R.rmList.find(r=>r.code===v);const c=custList().find(x=>x.toLowerCase()===v.toLowerCase());
-   if(ex)addTok('item',ex.code);else if(m)addTok('mat',m.code);else if(c)addTok('cust',c);else addTok('text',v);}
-  else if(e.key==='Escape'){sg.hidden=true;}
-  else if(e.key==='Backspace'&&!gq.value&&st.tok.length){st.tok.pop();saveTok();render();}});
- document.addEventListener('click',e=>{if(!e.target.closest('.fb-search'))sg.hidden=true;});
- $('#gclear').onclick=()=>{st.tok=[];saveTok();render();};}
 $('#pline').addEventListener('change',e=>{st.line=e.target.value;try{localStorage.setItem('fgdos2.line',st.line);}catch(_){}render();});
 
 function toast(msg){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,4200);}
@@ -1026,7 +937,7 @@ async function loadFiles(list){
       META[k]=file.name;META.src[k]='loaded';got.push(k);
     }catch(err){toast(`${file.name} couldn't be read: ${err.message}`);}
   }
-  if(got.length){CUST=null;run();toast('Updated: '+got.join(', '));}
+  if(got.length){run();toast('Updated: '+got.join(', '));}
 }
 const drop=$('#drop'),fi=$('#file');
 drop.onclick=()=>fi.click();drop.onkeydown=e=>{if(e.key==='Enter'||e.key===' ')fi.click();};
@@ -1239,7 +1150,7 @@ function summarySheet(){
 
 /* ---- builders per block ---- */
 function wbOf(sheets){const wb=XLSX.utils.book_new();for(const [n,ws] of sheets)XLSX.utils.book_append_sheet(wb,ws,n.slice(0,31));return wb;}
-const subOf=extra=>`As of ${iso(R.T)} · PA ${META.paDate||''} · target ${R.target} days${fDesc()?' · Filtered: '+fDesc():''}${extra?' · '+extra:''}`;
+const subOf=extra=>`As of ${iso(R.T)} · PA ${META.paDate||''} · target ${R.target} days${st.line!=='all'?' · '+st.line+' only':''}${extra?' · '+extra:''}`;
 function itemsBook(title,fgs,name){
   return [wbOf([[title.slice(0,31),tableSheet(title,subOf(fgs.length+' items'),itemCols(),fgs)],
     ['PA view',paSheet(fgs)],['Open orders',tableSheet('Open orders',subOf('stock left after each order, in pick-date order'),orderCols(),orderRows(fgs))]]),name];
@@ -1295,7 +1206,7 @@ function ordCols(){const TD=P.TD;
   {h:'Items using it',k:x=>x.fgs.map(y=>y.code).join(', '),w:40,wrap:true}];}
 function ordItemRows(list){const o=[];for(const x of list)for(const y of x.fgs){const c=VPF().find(z=>z.code===y.code);o.push({mc:x.code,md:short(x.desc),fc:y.code,fd:c?c.desc:'',q:+(+y.q).toFixed(4),fgd:c?+c.fgDays.toFixed(1):null,tot:c?+c.totPO.toFixed(1):null,rec:x.rec||null});}return o;}
 const ordItemCols=()=>[{h:'Material code',k:'mc',w:12,bold:true},{h:'Material',k:'md',w:30},{h:'Item',k:'fc',w:11,bold:true},{h:'Item description',k:'fd',w:32},{h:'Per case',k:'q',w:9},{h:'FG days',k:'fgd',w:8,t:'n1'},{h:'Total days (with POs)',k:'tot',w:10,t:'n1'},{h:'Material order qty',k:'rec',w:12,t:'n'}];
-function planSub(x){return `As of ${iso(R.T)} · target ${P.TD} total days (FG + RM) · can MOQ ${fmt(st.cfg.canMOQ)}${fDesc()?' · Filtered: '+fDesc():''}${x?' · '+x:''}`;}
+function planSub(x){return `As of ${iso(R.T)} · target ${P.TD} total days (FG + RM) · can MOQ ${fmt(st.cfg.canMOQ)}${st.line!=='all'?' · '+st.line+' only':''}${x?' · '+x:''}`;}
 function planBook(fgList,rmList,name,title){
   const sh=[];
   if(fgList)sh.push([`${P.TD}-day coverage`,tableSheet(title||`${P.TD}-day coverage by item`,planSub(fgList.length+' items'),covCols(),fgList)]);
@@ -1335,7 +1246,6 @@ const xbtn=(key,label='Excel')=>`<button class="xbtn" data-x="${esc(key)}" title
 (function init(){
   $('#today').value=iso(new Date());
   try{const p=localStorage.getItem('fgdos2.page');if(p&&['home','items','mat','cov','ord','data'].includes(p))st.page=p;}catch(_){}
-  try{const k=JSON.parse(localStorage.getItem('fgdos2.tok')||'[]');if(Array.isArray(k))st.tok=k.filter(x=>x&&x.t&&x.v);}catch(_){}
   try{const v=localStorage.getItem('fgdos2.view');if(v==='panel'||v==='rows')st.view=v;}catch(_){}
   try{const l=localStorage.getItem('fgdos2.line');if(l){st.line=l;$('#pline').value=l;}}catch(_){}
   run();
