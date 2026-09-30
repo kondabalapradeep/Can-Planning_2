@@ -1099,7 +1099,7 @@ document.addEventListener('click',e=>{
 });
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&st.sel){st.sel=null;render();return;}const t=e.target;if((e.key==='Enter'||e.key===' ')&&t.matches&&t.matches('.b3[data-go]')){e.preventDefault();t.click();}});
 ['#tgt','#today'].forEach(id=>$(id).addEventListener('change',run));
-{const gi=$('#gign');gi.value=st.ignore;const apply=()=>{st.ignore=gi.value;try{localStorage.setItem('fgdos2.ignore',st.ignore);}catch(_){}run();};gi.addEventListener('change',apply);gi.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();apply();}});}
+{const gi=$('#gign');gi.value=st.ignore;const apply=()=>{if(gi.value===st.ignore)return;st.ignore=gi.value;try{localStorage.setItem('fgdos2.ignore',st.ignore);}catch(_){}run();};gi.addEventListener('change',apply);gi.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();apply();}});}
 {const gq=$('#gq'),sg=$('#gsug');
  gq.addEventListener('input',()=>{const h=suggest(gq.value);sg.innerHTML=h;sg.hidden=!h;});
  gq.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();const v=gq.value.trim();if(!v)return;
@@ -1193,6 +1193,7 @@ const XC={ink:'17344E',dim:'5B7A93',blue:'0B76C0',line:'DBE8F2',hdr:'0B76C0',ban
   red:'FDEAEA',redT:'C62020',orange:'FDF1E2',orangeT:'B85A00',green:'E6F6EE',greenT:'137A48',amber:'FBF4DC',amberT:'8A6700',grey:'EEF2F6'};
 const B1={style:'thin',color:{rgb:XC.line}};
 const BOX={top:B1,bottom:B1,left:B1,right:B1};
+const cleanS=s=>String(s).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g,'').slice(0,32000);
 const TXT=s=>String(s==null?'':s).replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"');
 const XS=d=>d&&typeof d.getTime==='function'?Math.round((Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())-Date.UTC(1899,11,30))/864e5):d;
 const toDate=o=>o==null?null:new Date(R.T.getTime()+Math.floor(o)*DAY);
@@ -1210,7 +1211,7 @@ function statusFill(v){
 /* one styled table sheet: title, subtitle, header row, data rows with number formats + status colours */
 function tableSheet(title,sub,cols,rows){
   const aoa=[[title],[sub],[],cols.map(c=>c.h)];
-  for(const r of rows)aoa.push(cols.map(c=>{let v=typeof c.k==='function'?c.k(r):r[c.k];if(c.t==='d')v=XS(v);return v==null||v===''?null:v;}));
+  for(const r of rows)aoa.push(cols.map(c=>{let v=typeof c.k==='function'?c.k(r):r[c.k];if(c.t==='d')v=XS(v);if(typeof v==='number'&&!isFinite(v))v=null;if(typeof v==='string')v=cleanS(v);return v==null||v===''?null:v;}));
   const ws=XLSX.utils.aoa_to_sheet(aoa,{cellDates:true});
   const last=cols.length-1;
   ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:Math.max(3,last)}},{s:{r:1,c:0},e:{r:1,c:Math.max(3,last)}}];
@@ -1301,6 +1302,7 @@ function paSheet(fgs){
     }
     push([],'');
   }
+  for(const row of aoa)for(let i=0;i<row.length;i++){if(typeof row[i]==='string')row[i]=cleanS(row[i]);else if(typeof row[i]==='number'&&!isFinite(row[i]))row[i]=null;}
   const ws=XLSX.utils.aoa_to_sheet(aoa,{cellDates:true});
   ws['!cols']=[{wch:13},{wch:13},{wch:11},{wch:40},{wch:16},{wch:11},{wch:12},{wch:56}];
   ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:7}},{s:{r:1,c:0},e:{r:1,c:7}}];
@@ -1339,7 +1341,8 @@ function summarySheet(){
 }
 
 /* ---- builders per block ---- */
-function wbOf(sheets){const wb=XLSX.utils.book_new();for(const [n,ws] of sheets)XLSX.utils.book_append_sheet(wb,ws,n.slice(0,31));return wb;}
+const safeSheet=(n,used)=>{let x=String(n).replace(/[·•]/g,'-').replace(/[\\\/\?\*\[\]:']/g,'').replace(/[^\x20-\x7E]/g,'').replace(/\s+/g,' ').trim().slice(0,31)||'Sheet';let k=x,i=2;while(used.has(k.toLowerCase()))k=x.slice(0,28)+' '+(i++);used.add(k.toLowerCase());return k;};
+function wbOf(sheets){const wb=XLSX.utils.book_new(),used=new Set();for(const [n,ws] of sheets)XLSX.utils.book_append_sheet(wb,ws,safeSheet(n,used));return wb;}
 const subOf=extra=>`As of ${iso(R.T)} · PA ${META.paDate||''} · target ${R.target} days${fDesc()?' · Filtered: '+fDesc():''}${extra?' · '+extra:''}`;
 function itemsBook(title,fgs,name){
   return [wbOf([[title.slice(0,31),tableSheet(title,subOf(fgs.length+' items'),itemCols(),fgs)],
@@ -1422,13 +1425,15 @@ try{if(window.claude&&window.claude.use)window.claude.use('downloads').then(d=>{
 async function doExport(key){
   let out;try{out=buildPlanExport(key)||buildExport(key);}catch(e){toast('Export failed: '+e.message);return;}
   if(!out)return;
-  const [wb,name]=out;
+  const [wb,name]=out;let bytes;
+  try{bytes=new Uint8Array(XLSX.write(wb,{bookType:'xlsx',type:'array',compression:true}));}catch(e){toast('Export failed: '+e.message);return;}
+  const blob=new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
   if(DL){
-    try{const buf=XLSX.write(wb,{bookType:'xlsx',type:'array'});await DL.save({filename:name,data:new Blob([buf])});toast('Saved '+name);}
-    catch(e){if(e&&e.code!=='declined')toast('Could not save: '+(e.message||e.code));}
-    return;
+    try{await DL.save({filename:name,data:bytes.slice()});toast('Saved '+name);return;}
+    catch(e){if(e&&e.code==='declined')return;}
   }
-  try{XLSX.writeFile(wb,name);toast('Downloaded '+name);}catch(e){toast('Download blocked here. Open the page from GitHub Pages to export.');}
+  try{const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),8000);toast('Downloaded '+name);}
+  catch(e){toast('Download blocked here. Open the team copy file to export.');}
 }
 const xbtn=(key,label='Excel')=>`<button class="xbtn" data-x="${esc(key)}" title="Export to Excel" aria-label="Export to Excel"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M8 2v8m0 0-3-3m3 3 3-3M3 12.5h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>${label}</button>`;
 
